@@ -395,8 +395,11 @@ const api = (()=>{
 
   // ===== DIAS =====
   async function listDias(eventId, params={}){
-    const qs = new URLSearchParams(params);
-    return request(`/events/${eventId}/days${qs.toString() ? '?' + qs.toString() : ''}`, { method:'GET' });
+    if (!eventId) {
+      console.warn('listDias: eventId não foi fornecido.');
+      return []; // Retorna um array vazio se não houver ID do evento
+    }
+    return request(`/events/${eventId}/days`, { method:'GET' });
   }
   async function createDia(eventId, data){
     return request(`/events/${eventId}/days`, { method:'POST', body: JSON.stringify(data) });

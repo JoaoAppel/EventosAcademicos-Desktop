@@ -688,7 +688,18 @@ async function renderReports(){
     tb.innerHTML = '';
     for (const r of rows) {
       const tr = document.createElement('tr');
-      tr.innerHTML = `<td>${r.student_name||''}</td><td>${r.student_email||''}</td><td>${r.enrollment_id||''}</td><td>${r.day_event_id||''}</td><td>${r.checkin_em||''}</td><td>${r.checkout_em||''}</td>`;
+      
+      // Formata as datas para o padrão brasileiro, se existirem
+      const checkin = r.checkin_at ? new Date(r.checkin_at).toLocaleString('pt-BR') : '-';
+      const checkout = r.checkout_at ? new Date(r.checkout_at).toLocaleString('pt-BR') : '-';
+
+      tr.innerHTML = `
+        <td>${r.student_name || r.student?.name || ''}</td>
+        <td>${r.student_email || r.student?.email || ''}</td>
+        <td>${r.enrollment_id || r.enrollment?.id || ''}</td>
+        <td>${r.day_event_id || r.day_event?.id || ''}</td>
+        <td>${checkin}</td>
+        <td>${checkout}</td>`;
       tb.appendChild(tr);
     }
   }
@@ -722,15 +733,31 @@ async function renderReports(){
   $('#btn-export-pdf')?.classList.add('ghost');
 
   $('#btn-export-csv').onclick = async ()=>{
-    const csv = 'Aluno,Email,Inscrição,Dia,Check-in,Check-out\n' + lastData.map(r=>[r.student_name||'', r.student_email||'', r.enrollment_id||'', r.day_event_id||'', r.checkin_em||'', r.checkout_em||''].join(',')).join('\n');
+    if (lastData.length === 0) {
+      return showToast('Não há dados para exportar.', 'error');
+    }
+    const header = 'Aluno,Email,Inscricao,Dia,Check-in,Check-out\n';
+    const csv = header + lastData.map(r => {
+      const checkin = r.checkin_at ? new Date(r.checkin_at).toLocaleString('pt-BR') : '';
+      const checkout = r.checkout_at ? new Date(r.checkout_at).toLocaleString('pt-BR') : '';
+      const fields = [r.student_name||'', r.student_email||'', r.enrollment_id||'', r.day_event_id||'', checkin, checkout];
+      return fields.map(f => `"${String(f).replace(/"/g, '""')}"`).join(',');
+    }).join('\n');
     const b64 = Buffer.from(csv, 'utf-8').toString('base64');
     await desktop.saveFile('presencas.csv', b64);
   };
 
   $('#btn-export-xlsx').onclick = async ()=>{
+    if (lastData.length === 0) {
+      return showToast('Não há dados para exportar.', 'error');
+    }
     const XLSXlib = (typeof window !== 'undefined' && window.XLSX) ? window.XLSX : null;
     if (!XLSXlib) return addLog('export-xlsx', 'XLSX library not available', false);
-    const wsData = [['Aluno','Email','Inscrição','Dia','Check-in','Check-out'], ...lastData.map(r=>[r.student_name||'', r.student_email||'', r.enrollment_id||'', r.day_event_id||'', r.checkin_em||'', r.checkout_em||''])];
+    const wsData = [['Aluno','Email','Inscricao','Dia','Check-in','Check-out'], ...lastData.map(r => [
+      r.student_name||'', r.student_email||'', r.enrollment_id||'', r.day_event_id||'',
+      r.checkin_at ? new Date(r.checkin_at) : '', // Passa como objeto Date para melhor formatação no Excel
+      r.checkout_at ? new Date(r.checkout_at) : ''
+    ])];
     const wb = XLSXlib.utils.book_new();
     const ws = XLSXlib.utils.aoa_to_sheet(wsData);
     XLSXlib.utils.book_append_sheet(wb, ws, 'Presenças');
@@ -740,13 +767,18 @@ async function renderReports(){
   };
 
   $('#btn-export-pdf').onclick = async ()=>{
+    if (lastData.length === 0) {
+      return showToast('Não há dados para exportar.', 'error');
+    }
     const jspdfLib = (typeof window !== 'undefined' && window.jspdf) ? window.jspdf : null;
     if (!jspdfLib) return addLog('export-pdf', 'jspdf library not available', false);
     const doc = new jspdfLib.jsPDF({ orientation: 'l', unit: 'pt', format: 'a4' });
     doc.text('Relatório de Presenças', 40, 40);
     let y = 70;
     for (const r of lastData.slice(0, 30)) {
-      doc.text(`${r.student_name||''} | ${r.student_email||''} | ${r.enrollment_id||''} | ${r.day_event_id||''} | ${r.checkin_em||''} | ${r.checkout_em||''}`, 40, y);
+      const checkin = r.checkin_at ? new Date(r.checkin_at).toLocaleTimeString('pt-BR') : '-';
+      const checkout = r.checkout_at ? new Date(r.checkout_at).toLocaleTimeString('pt-BR') : '-';
+      doc.text(`${r.student_name||''} | ${r.student_email||''} | ${checkin} | ${checkout}`, 40, y);
       y += 18;
     }
     const buffer = doc.output('arraybuffer');
