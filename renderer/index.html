@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self' https://events-backend-zug5.onrender.com http://127.0.0.1:9999 http://localhost:9999 http://127.0.0.1:* http://localhost:*;">
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Events Desktop</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <div class="app">
+      <header>
+        <div class="brand">Events Desktop</div>
+        <nav>
+          <button id="tab-login">Login</button>
+          <button id="tab-eventos">Eventos</button>
+          <button id="tab-inscricoes">Inscrições</button>
+          <button id="tab-gate">Portaria</button>
+          <button id="tab-reports">Relatórios</button>
+          <button id="tab-certificados">Certificados</button>
+          <button id="tab-settings">Configurações</button>
+        </nav>
+      </header>
+
+      <div class="container">
+        <aside class="sidebar panel">
+          <div class="block">
+            <h3>Visão Rápida</h3>
+            <p style="color:var(--muted); font-size:13px;">Use as abas para navegar entre Login, Portaria e Relatórios. Configure a Base URL em Login.</p>
+            <div style="margin-top:12px; display:flex; gap:8px;">
+              <button id="quick-sync" class="ghost">Sincronizar</button>
+              <button id="quick-settings" class="ghost">Configurações</button>
+            </div>
+          </div>
+        </aside>
+
+        <main id="view"></main>
+      </div>
+    </div>
+
+    <template id="tpl-login">
+      <div id="login-form" style="display:block;" autocomplete="off">
+        <div class="block" style="max-width:400px; margin:40px auto;">
+          <h2>Conectar ao Backend Events</h2>
+          <p style="color:var(--muted); font-size:13px;">Configure a conexão com a API do backend.</p>
+          <!-- Base URL is fixed for this build; keep a hidden input for compatibility with existing code -->
+          <input type="hidden" id="baseUrl" value="https://events-backend-zug5.onrender.com" />
+          <label>Tenant <input id="tenant" placeholder="demo"/></label>
+          <p style="color:var(--muted); font-size:13px; margin-top:8px;">A URL da API está pré-configurada e oculta aqui.</p>
+          <label>Email <input id="email" placeholder="admin@demo" autocomplete="off"/></label>
+          <label>Senha <input id="password" type="password" placeholder="admin123" autocomplete="new-password"/></label>
+          <div class="row" style="margin-top:16px;">
+            <button id="btn-login" class="primary">Login</button>
+            <span id="login-status" style="margin-left:12px; color:var(--muted); font-size:13px;"></span>
+          </div>
+        </div>
+      </div>
+
+      <div id="login-success" style="display:none;">
+        <div class="block" style="max-width:500px; margin:40px auto;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2 style="margin:0;">Bem-vindo!</h2>
+            <button id="btn-logout" class="ghost" style="padding:6px 12px; font-size:12px;">Logout</button>
+          </div>
+          <div style="background:rgba(79,70,229,0.08); border:1px solid var(--border); border-radius:8px; padding:16px; margin-bottom:20px;">
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; font-size:13px;">
+              <div>
+                <span style="color:var(--muted);">Usuário:</span>
+                <div id="user-name" style="font-weight:500; margin-top:4px;">-</div>
+              </div>
+              <div>
+                <span style="color:var(--muted);">Perfil:</span>
+                <div id="user-role" style="font-weight:500; margin-top:4px;">-</div>
+              </div>
+              <div>
+                <span style="color:var(--muted);">Tenant:</span>
+                <div id="user-tenant" style="font-weight:500; margin-top:4px;">-</div>
+              </div>
+              <div>
+                <span style="color:var(--muted);">E-mail:</span>
+                <div id="user-email" style="font-weight:500; margin-top:4px;">-</div>
+              </div>
+            </div>
+          </div>
+          <p style="color:var(--muted); font-size:12px;">Use as abas acima para navegar entre Eventos, Portaria e Relatórios.</p>
+        </div>
+      </div>
+    </template>
+
+    <template id="tpl-inscricoes">
+      <div class="block">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2>Inscrições</h2>
+          <div style="display:flex; gap:8px;">
+            <input id="filter-evento" type="text" placeholder="Filtrar evento..." style="width:200px;" />
+            <button id="btn-new-inscricao" class="primary" style="padding:8px 12px; font-size:13px;">+ Inscrição</button>
+          </div>
+        </div>
+        <table style="width:100%;">
+          <thead><tr><th>Aluno</th><th>Email</th><th>Evento</th><th>Status</th><th>Data inscrição</th><th>Ações</th></tr></thead>
+          <tbody id="tbl-inscricoes"></tbody>
+        </table>
+      </div>
+
+      <div id="inscricao-form-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; align-items:center; justify-content:center;">
+        <div class="block" style="max-width:500px; width:90%; background:var(--panel);">
+          <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
+            <h3>Nova Inscrição</h3>
+            <button id="btn-close-inscricao-modal" class="ghost" style="padding:4px 8px;">✕</button>
+          </div>
+          <form id="form-inscricao" style="display:flex; flex-direction:column; gap:12px;">
+            <label>Evento <select id="f-evento-id" required></select></label>
+            <label>Aluno <input id="f-aluno-email" type="email" placeholder="aluno@example.com" required /></label>
+            <label>Nome <input id="f-aluno-nome" type="text" required /></label>
+            <label>CPF <input id="f-aluno-cpf" type="text" /></label>
+            <div class="row" style="gap:8px;">
+              <button id="btn-save-inscricao" type="button" class="primary">Salvar</button>
+              <button id="btn-cancel-inscricao" type="button" class="ghost">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </template>
+
+    <template id="tpl-eventos">
+      <div class="block">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2>Eventos</h2>
+          <button id="btn-new-evento" class="primary" style="padding:8px 12px; font-size:13px;">+ Novo</button>
+        </div>
+        <table style="width:100%;">
+          <thead><tr><th>Título</th><th>Data início</th><th>Capacidade</th><th>Local</th><th>Ações</th></tr></thead>
+          <tbody id="tbl-eventos"></tbody>
+        </table>
+      </div>
+
+      <div id="evento-form-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); z-index:999; display:none; align-items:center; justify-content:center;">
+        <div class="block" style="max-width:600px; width:90%; background:var(--panel);">
+          <div style="display:flex; justify-content:space-between; margin-bottom:16px;">
+            <h3 id="form-title">Novo Evento</h3>
+            <button id="btn-close-modal" class="ghost" style="padding:4px 8px;">✕</button>
+          </div>
+          <form id="form-evento" style="display:flex; flex-direction:column; gap:12px;">
+            <label>Título <input id="f-titulo" type="text" required /></label>
+            <label>Descrição <textarea id="f-descricao" style="min-height:80px;"></textarea></label>
+            <label>Local <input id="f-local" type="text" /></label>
+            <label>Data início <input id="f-data-inicio" type="date" /></label>
+            <label>Data fim <input id="f-data-fim" type="date" /></label>
+            <label>Capacidade <input id="f-capacidade" type="number" /></label>
+            <div class="row" style="gap:8px;">
+              <button id="btn-save-evento" type="button" class="primary">Salvar</button>
+              <button id="btn-cancel-evento" type="button" class="ghost">Cancelar</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </template>
+
+    <template id="tpl-reports">
+      <div class="block">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2>Relatórios</h2>
+          <button id="btn-load-att" class="primary" style="padding:8px 12px; font-size:13px;">Carregar presença</button>
+        </div>
+        <div class="row" style="gap:12px; margin-bottom:16px;">
+          <label style="flex:1;">Evento <select id="repEventSelect" style="width:100%;"></select></label>
+          <label style="flex:1;">Dia do Evento <select id="repDaySelect" style="width:100%;"></select></label>
+        </div>
+        <div class="row" style="gap:8px; margin-bottom:16px;">
+          <button id="btn-export-csv" class="ghost" style="padding:8px 12px; font-size:12px;">CSV</button>
+          <button id="btn-export-xlsx" class="ghost" style="padding:8px 12px; font-size:12px;">XLSX</button>
+          <button id="btn-export-pdf" class="ghost" style="padding:8px 12px; font-size:12px;">PDF</button>
+        </div>
+        <table id="tbl-att" style="width:100%;">
+          <thead><tr><th>Aluno</th><th>Email</th><th>Inscrição</th><th>Dia</th><th>Check-in</th><th>Check-out</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </template>
+
+    <template id="tpl-settings">
+      <section class="card">
+        <h2>Configurações</h2>
+        <label>Beep sonoro <input id="soundToggle" type="checkbox"/></label>
+        <label>Salvar local das exportações <input id="exportPath" placeholder=""/></label>
+        <button id="btn-save-settings" class="primary">Salvar</button>
+      </section>
+    </template>
+
+    <template id="tpl-certificados">
+      <div class="block">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h2>Certificados</h2>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <select id="certEventSelect" style="min-width:260px;"></select>
+            <button id="btn-load-cert" class="primary">Carregar elegíveis</button>
+            <button id="btn-emit-lote" class="primary">Emitir lote</button>
+          </div>
+        </div>
+
+        <div id="cert-summary" style="margin-bottom:12px; color:var(--muted);"></div>
+
+        <table style="width:100%;">
+          <thead><tr><th></th><th>Aluno</th><th>Email</th><th>Evento</th><th>Presença %</th><th>Elegível</th><th>Emitido</th></tr></thead>
+          <tbody id="tbl-cert-list"></tbody>
+        </table>
+      </div>
+    </template>
+
+    <template id="tpl-gate">
+      <!-- Large Status Panel -->
+      <section style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 40px; border-radius: 8px; margin-bottom: 24px; text-align: center; color: white;">
+        <div id="gate-status-large" style="display: none; min-height: 200px; display: flex; flex-direction: column; justify-content: center; align-items: center;">
+          <div id="gate-status-icon" style="font-size: 80px; margin-bottom: 20px;"></div>
+          <div id="gate-status-text" style="font-size: 32px; font-weight: bold; margin-bottom: 10px;">Aguardando...</div>
+          <div id="gate-status-qr" style="font-size: 18px; color: rgba(255,255,255,0.8);"></div>
+          <div id="gate-status-time" style="font-size: 14px; color: rgba(255,255,255,0.6); margin-top: 10px;"></div>
+        </div>
+      </section>
+
+      <section class="row">
+        <div class="card grow">
+          <h2>Scanner (Webcam)</h2>
+          <video id="video" autoplay playsinline style="width: 100%; border-radius: 4px; margin-bottom: 16px;"></video>
+          <canvas id="canvas" class="hidden"></canvas>
+          <div class="row">
+            <label style="flex: 1;">Dia do Evento <input id="dayId" placeholder="day_evento_id" style="width: 100%;"/></label>
+            <label style="flex: 1;">Ação
+              <select id="gateAction" style="width: 100%;">
+                <option value="checkin">Check-in</option>
+                <option value="checkout">Check-out</option>
+              </select>
+            </label>
+            <label style="flex: 1;">Device ID <input id="deviceId" placeholder="gate-01" style="width: 100%;"/></label>
+          </div>
+          <div style="display: flex; gap: 8px; margin-top: 12px;">
+            <button id="btn-toggle-camera" class="primary" style="flex: 1;">Iniciar câmera</button>
+            <button id="btn-sync-offline" class="primary" style="flex: 1;">Sincronizar offline</button>
+          </div>
+          <div id="sound"></div>
+        </div>
+        <div class="card">
+          <h2>Scanner (Serial)</h2>
+          <button id="btn-list-serial" class="ghost">Listar portas</button>
+          <select id="serialPorts" style="width: 100%; margin-bottom: 8px;"></select>
+          <button id="btn-open-serial" class="ghost" style="width: 100%;">Conectar</button>
+          <pre id="serial-log" style="background: #1e1e1e; color: #d4d4d4; padding: 12px; border-radius: 4px; max-height: 200px; overflow-y: auto; font-size: 11px;"></pre>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Últimos registros</h2>
+        <table id="tbl-logs" style="width: 100%; font-size: 14px;">
+          <thead><tr><th>Hora</th><th>QR/Inscrição</th><th>Resultado</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+    </template>
+
+    <script src="js/api.js"></script>
+    <script src="js/qr.js"></script>
+    <script src="js/offline.js"></script>
+    <script src="renderer.js"></script>
+  </body>
+</html>
